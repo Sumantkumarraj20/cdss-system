@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+
+# Environment variables
+.env*.local
+.env
+
+# Python (if your backend uses it)
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,40 @@
+[
+  {
+    "name": "Pulmonary Embolism",
+    "icd10": "I26",
+    "description": "Obstruction of pulmonary artery branches by thrombus.",
+    "symptoms": ["dyspnea", "pleuritic chest pain"],
+    "signs": ["tachycardia", "hypoxia"],
+    "investigations": ["CT pulmonary angiography", "D-dimer"],
+    "drugs": ["heparin", "apixaban"],
+    "interventions": ["oxygen therapy"],
+    "guidelines": [
+      {
+        "title": "ACCP VTE Guideline",
+        "organization": "ACCP",
+        "publication_year": 2021,
+        "recommendation": "Anticoagulation for at least 3 months."
+      }
+    ],
+    "red_flags": ["sudden dyspnea with hypotension"]
+  },
+  {
+    "name": "Acute Myocardial Infarction",
+    "icd10": "I21",
+    "description": "Myocardial necrosis due to ischemia.",
+    "symptoms": ["chest pain", "diaphoresis", "nausea"],
+    "signs": ["S3 gallop", "hypotension"],
+    "investigations": ["ECG", "Troponin"],
+    "drugs": ["aspirin", "clopidogrel", "heparin"],
+    "interventions": ["PCI", "oxygen therapy"],
+    "guidelines": [
+      {
+        "title": "ACC/AHA STEMI Guideline",
+        "organization": "ACC/AHA",
+        "publication_year": 2017,
+        "recommendation": "Primary PCI within 90 minutes."
+      }
+    ],
+    "red_flags": ["persistent chest pain >20 minutes with diaphoresis"]
+  }
+]

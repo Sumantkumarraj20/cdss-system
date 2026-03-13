@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+import uuid
+from typing import Optional, TYPE_CHECKING
+
+from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base
+
+if TYPE_CHECKING:
+    from .diagnosis import Diagnosis
+    from .symptom import Symptom
+
+
+class DiagnosisSymptom(Base):
+    __tablename__ = "diagnosis_symptoms"
+    __table_args__ = (
+        UniqueConstraint("diagnosis_id", "symptom_id", name="uq_diagnosis_symptom"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    diagnosis_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("diagnoses.id", ondelete="CASCADE"))
+    symptom_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("symptoms.id", ondelete="CASCADE"))
+    frequency: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    diagnosis: Mapped["Diagnosis"] = relationship("Diagnosis", back_populates="symptoms")
+    symptom: Mapped["Symptom"] = relationship("Symptom", back_populates="diagnoses")
