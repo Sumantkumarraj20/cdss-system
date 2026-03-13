@@ -11,6 +11,7 @@ build/
 # Environment variables
 .env*.local
 .env
+.env.example
 
 # Python (if your backend uses it)
 __pycache__/
