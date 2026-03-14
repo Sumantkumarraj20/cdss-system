@@ -270,7 +270,7 @@ export default function ChestPainPage() {
                     <td className="py-2 text-white">{log.clinician}</td>
                     <td className="py-2 text-slate-200">{log.role}</td>
                     <td className="py-2 text-slate-200">{log.action}</td>
-                    <td className="py-2 text-slate-300">{new Date(log.timestamp).toLocaleString()}</td>
+                    <td className="py-2 text-slate-300">{new Date(log.timestamp).toISOString()}</td>
                   </tr>
                 ))}
               </tbody>

@@ -9,6 +9,15 @@ from app.core.security import (
 )
 from app.core.auth import require_token
 
+
+def cookie_params():
+    # For cross-site (Vercel) we need SameSite=None and Secure
+    frontend_origin = os.getenv("CDSS_FRONTEND_ORIGIN", "http://localhost:3000")
+    cross_site = frontend_origin.startswith("https://")
+    same_site = "none" if cross_site else "lax"
+    secure = cross_site
+    return {"httponly": True, "secure": secure, "samesite": same_site}
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -27,20 +36,9 @@ def login(payload: dict = Body(...)):
     access = create_access_token("admin")
     refresh = create_refresh_token("admin")
     response = JSONResponse({"access_token": access, "refresh_token": refresh})
-    response.set_cookie(
-        "cdss_access",
-        access,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
-    response.set_cookie(
-        "cdss_refresh",
-        refresh,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
+    params = cookie_params()
+    response.set_cookie("cdss_access", access, **params)
+    response.set_cookie("cdss_refresh", refresh, **params)
     return response
 
 
@@ -51,13 +49,8 @@ def refresh(token: dict = Body(...)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     access = create_access_token(sub)
     response = JSONResponse({"access_token": access})
-    response.set_cookie(
-        "cdss_access",
-        access,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
+    params = cookie_params()
+    response.set_cookie("cdss_access", access, **params)
     return response
 
 

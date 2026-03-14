@@ -1,6 +1,8 @@
 import "./globals.css";
-import ReactQueryProvider from "@/lib/react-query-provider";
 import type { Metadata } from "next";
+import ClientShell from "../components/ClientShell";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "CDSS Ward",
@@ -16,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ReactQueryProvider>{children}</ReactQueryProvider>
+        <ClientShell>{children}</ClientShell>
       </body>
     </html>
   );

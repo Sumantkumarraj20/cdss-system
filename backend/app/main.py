@@ -9,10 +9,19 @@ from app.core.config import settings
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, version="1.0", debug=settings.debug)
 
-    origins = [os.getenv("CDSS_FRONTEND_ORIGIN", "http://localhost:3000")]
+    # CORS: allow explicit origin from env; in debug also allow any localhost/127.x.x.x
+    default_origin = os.getenv("CDSS_FRONTEND_ORIGIN", "http://localhost:3000")
+    origins = [default_origin]
+    # Always allow localhost/127.x for dev tools, regardless of debug flag.
+    origin_regex = r"https?://(localhost|127(?:\\.\\d{1,3}){3})(:\\d+)?"
+    if settings.debug:
+        origins.append("http://127.0.0.1:3000")
+        origins.append("http://localhost:3000")
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
+        allow_origin_regex=origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

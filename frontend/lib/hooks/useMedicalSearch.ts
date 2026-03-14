@@ -46,6 +46,7 @@ export function useMedicalSearch() {
   });
 
   const [fuse, setFuse] = useState<Fuse<any> | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -58,6 +59,7 @@ export function useMedicalSearch() {
         ...data.symptoms.map((d) => ({ ...d, __type: "symptoms" })),
       ];
       setFuse(new Fuse(combined, fuseOptions));
+      setLoaded(true);
     });
     return () => {
       active = false;
@@ -97,7 +99,8 @@ export function useMedicalSearch() {
       setQuery,
       results,
       ready: Boolean(fuse),
+      loaded,
     }),
-    [query, results, fuse]
+    [query, results, fuse, loaded]
   );
 }
