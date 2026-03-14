@@ -70,3 +70,31 @@ class DrugSearchResult(BaseModel):
 
     items: List[DrugBase]
     total: int
+
+
+class DrugCreate(BaseModel):
+    name: str
+    generic_name: Optional[str] = None
+    chemical_class: Optional[str] = None
+    therapeutic_class: Optional[str] = None
+    mechanism: Optional[str] = None
+    habit_forming: bool = False
+    pregnancy_category: Optional[str] = None
+    lactation_safety: Optional[str] = None
+    side_effects: List[str] = []
+    diseases: List[str] = []
+    contraindications: List[str] = []
+
+
+class DrugUpdate(BaseModel):
+    name: Optional[str] = None
+    generic_name: Optional[str] = None
+    chemical_class: Optional[str] = None
+    therapeutic_class: Optional[str] = None
+    mechanism: Optional[str] = None
+    habit_forming: Optional[bool] = None
+    pregnancy_category: Optional[str] = None
+    lactation_safety: Optional[str] = None
+    side_effects: Optional[List[str]] = None
+    diseases: Optional[List[str]] = None
+    contraindications: Optional[List[str]] = None

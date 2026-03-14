@@ -1,16 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
-from app.api import drug_routes, clinical_routes
+from app.api import drug_routes, clinical_routes, admin_routes, sync_routes, auth_routes
 from app.core.config import settings
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, version="1.0", debug=settings.debug)
 
+    origins = [os.getenv("CDSS_FRONTEND_ORIGIN", "http://localhost:3000")]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -18,6 +20,9 @@ def create_app() -> FastAPI:
 
     app.include_router(drug_routes.router)
     app.include_router(clinical_routes.router)
+    app.include_router(admin_routes.router)
+    app.include_router(sync_routes.router)
+    app.include_router(auth_routes.router)
 
     @app.get("/", tags=["meta"])
     def root():

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from .diagnosis_intervention import DiagnosisIntervention
     from .diagnosis_guideline import DiagnosisGuideline
     from .diagnosis_drug import DiagnosisDrug
+    from .drug_disease import DrugDisease
 
 
 class Diagnosis(Base):
@@ -56,4 +57,7 @@ class Diagnosis(Base):
     )
     drugs: Mapped[List["DiagnosisDrug"]] = relationship(
         "DiagnosisDrug", back_populates="diagnosis", cascade="all, delete-orphan"
+    )
+    drug_diseases: Mapped[List["DrugDisease"]] = relationship(
+        "DrugDisease", back_populates="disease", cascade="all, delete-orphan"
     )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -43,3 +43,14 @@ class DecisionSupportResponse(BaseModel):
 class SearchResult(BaseModel):
     type: str
     name: str
+
+
+class PresentationCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class DiagnosisCreate(BaseModel):
+    name: str
+    icd10_code: Optional[str] = None
+    description: Optional[str] = None

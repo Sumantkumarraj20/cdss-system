@@ -37,4 +37,4 @@ class DrugDisease(Base):
     )
 
     drug: Mapped["Drug"] = relationship("Drug", back_populates="diseases")
-    disease: Mapped["Diagnosis"] = relationship("Diagnosis", back_populates="drugs")
+    disease: Mapped["Diagnosis"] = relationship("Diagnosis", back_populates="drug_diseases")

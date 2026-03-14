@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: cdss-db
+    environment:
+      POSTGRES_USER: cdss
+      POSTGRES_PASSWORD: cdss
+      POSTGRES_DB: cdss
+    # No host port published to avoid clashes with local Postgres; connect via service name `db` from other containers.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdss -d cdss"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: cdss-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    # No host port published; reachable as `redis` inside the compose network.
+    volumes:
+      - redisdata:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cdss-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://cdss:cdss@db:5432/cdss
+      CDSS_APP_NAME: CDSS Backend
+      CDSS_DEBUG: "True"
+      PYTHONPATH: /app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: >
+      bash -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  pgdata:
+  redisdata:

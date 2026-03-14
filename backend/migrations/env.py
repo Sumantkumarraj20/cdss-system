@@ -17,6 +17,11 @@ import app.models  # noqa: F401 - registers all model metadata
 # access to the values within the .ini file in use.
 config = context.config
 
+# Prefer DATABASE_URL from environment (works in Docker/CI); fallback to alembic.ini.
+env_db_url = os.getenv("DATABASE_URL")
+if env_db_url:
+    config.set_main_option("sqlalchemy.url", env_db_url)
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:

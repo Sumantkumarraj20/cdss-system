@@ -3,11 +3,16 @@ from __future__ import annotations
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.schemas.drug import DrugDetail, DrugSearchResult
+from app.schemas.drug import (
+    DrugDetail,
+    DrugSearchResult,
+    DrugCreate,
+    DrugUpdate,
+)
 from app.services import drug_service
 
 router = APIRouter(prefix="/drugs", tags=["drugs"])
@@ -44,3 +49,19 @@ def get_drug(drug_id: UUID, db: Session = Depends(get_db)):
         diseases=[dd.disease for dd in drug.diseases],
         contraindications=[dc.condition for dc in drug.contraindications],
     )
+
+
+@router.post("", response_model=DrugDetail, status_code=201)
+def create_drug(payload: DrugCreate = Body(...), db: Session = Depends(get_db)):
+    drug = drug_service.create_drug(db, payload)
+    return get_drug(drug.id, db)  # reuse existing serializer
+
+
+@router.patch("/{drug_id}", response_model=DrugDetail)
+def update_drug_endpoint(
+    drug_id: UUID, payload: DrugUpdate = Body(...), db: Session = Depends(get_db)
+):
+    drug = drug_service.update_drug(db, drug_id, payload)
+    if not drug:
+        raise HTTPException(status_code=404, detail="Drug not found")
+    return get_drug(drug.id, db)

@@ -99,7 +99,7 @@ const fallbackDrugInfo = {
 
 async function loadPresentation() {
   try {
-    const res = await api.get("/presentation/chest-pain");
+    const res = await api.get("/clinical/presentations/chest-pain");
     return res.data;
   } catch (error) {
     return fallbackPresentation;
@@ -108,7 +108,7 @@ async function loadPresentation() {
 
 async function loadDiagnoses() {
   try {
-    const res = await api.get("/diagnoses/chest-pain");
+    const res = await api.get("/clinical/search", { params: { q: "chest pain" } });
     return res.data;
   } catch (error) {
     return fallbackDiagnoses;
@@ -117,7 +117,7 @@ async function loadDiagnoses() {
 
 async function loadDrugInfo() {
   try {
-    const res = await api.get("/drugs/chest-pain");
+    const res = await api.get("/drugs/search", { params: { q: "chest", limit: 5 } });
     return res.data;
   } catch (error) {
     return fallbackDrugInfo;
