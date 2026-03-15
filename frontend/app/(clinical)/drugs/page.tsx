@@ -49,7 +49,10 @@ export default function DrugSearchPage() {
   });
 
   // Local-first: use Fuse results when ready to avoid network.
-  const localItems = results.drugs;
+  const localItems = results.drugs.map((d) => ({
+    ...d,
+    habit_forming: Boolean(d.habit_forming),
+  })) as DrugBase[];
   const items: DrugBase[] =
     localReady && debounced.length >= 2
       ? localItems

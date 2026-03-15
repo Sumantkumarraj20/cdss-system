@@ -48,3 +48,18 @@ This project deploys the FastAPI backend to Render (free tier), the PostgreSQL d
 Notes
 - Render free tier sleeps after inactivity; expect a cold start on first request.
 - If Alembic needs a URL during migrations, it picks up `DATABASE_URL` from the environment; override `sqlalchemy.url` in `alembic.ini` if necessary.
+
+## Sync local data to Neon before deploy
+If you seed/import locally and want Neon to mirror it before deployment:
+
+```bash
+cd backend
+LOCAL_DATABASE_URL=postgres://cdss_user:strongpassword@localhost/cdss_db \\
+DATABASE_URL=postgresql://neondb_owner:npg_fS3cKZtxmQ8L@ep-lingering-sound-a16m8q32-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require \\
+./scripts/sync_to_neon.sh
+```
+
+Notes:
+- Requires `pg_dump` / `pg_restore` installed locally.
+- The script drops/recreates objects in Neon (`--clean --if-exists`); remove that flag if you prefer merge-only.
+- Ensure Render’s `DATABASE_URL` points to Neon so deployed code uses the synced data.
