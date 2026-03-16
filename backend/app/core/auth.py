@@ -1,21 +1,32 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import os
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import jwt, JWTError
+from sqlalchemy.orm import Session
 
-from app.core.security import decode_token
+from app.db.database import get_db
+from app.models.user import User
+from app.core.security import SECRET_KEY, ALGORITHM
 
-security = HTTPBearer(auto_error=False)
-API_TOKEN = os.getenv("CDSS_API_TOKEN")
+security = HTTPBearer()
 
 
-def require_token(
+def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
 ):
-    if credentials:
-        token = credentials.credentials
-        # Accept either static API token or valid JWT
-        if API_TOKEN and token == API_TOKEN:
-            return token
-        if decode_token(token):
-            return token
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    token = credentials.credentials
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = db.get(User, user_id)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user

@@ -1,32 +1,27 @@
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-import os
+from datetime import datetime, timedelta
+from jose import jwt
+from passlib.context import CryptContext
 
-from jose import jwt, JWTError
-
-SECRET_KEY = os.getenv("CDSS_JWT_SECRET", "change-me")
+SECRET_KEY = "95d187b88760ce6cfb97fe346db2a031"
 ALGORITHM = "HS256"
-ACCESS_EXPIRE_MINUTES = int(os.getenv("CDSS_ACCESS_EXPIRE_MINUTES", "30"))
-REFRESH_EXPIRE_MINUTES = int(os.getenv("CDSS_REFRESH_EXPIRE_MINUTES", "43200"))  # 30 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def create_token(sub: str, expires_delta: timedelta) -> str:
-    expire = datetime.now(timezone.utc) + expires_delta
-    to_encode = {"sub": sub, "exp": expire}
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    return pwd_context.verify(password, hashed)
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    to_encode.update({"exp": expire})
+
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-def create_access_token(sub: str) -> str:
-    return create_token(sub, timedelta(minutes=ACCESS_EXPIRE_MINUTES))
-
-
-def create_refresh_token(sub: str) -> str:
-    return create_token(sub, timedelta(minutes=REFRESH_EXPIRE_MINUTES))
-
-
-def decode_token(token: str) -> Optional[str]:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload.get("sub")
-    except JWTError:
-        return None

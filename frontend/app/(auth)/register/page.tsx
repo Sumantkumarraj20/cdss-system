@@ -2,47 +2,54 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
-  const [status, setStatus] = useState<"idle" | "ok" | "error">("idle");
 
-  const submit = async () => {
-    try {
-      // Placeholder: call login with token; real registration would hit an auth service.
-      await api.post("/auth/login", { token });
-      setStatus("ok");
-      router.push("/login");
-    } catch {
-      setStatus("error");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    const res = await fetch("/api/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (res.ok) {
+      router.push("/admin");
+    } else {
+      const data = await res.json();
+      alert(data.error || "Registration failed");
     }
-  };
+  }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="bg-white rounded-xl shadow p-6 w-full max-w-md space-y-4">
-        <h1 className="text-xl font-semibold">Register (placeholder)</h1>
+    <div className="max-w-md mx-auto mt-20 space-y-6">
+      <h1 className="text-2xl font-semibold">Create Admin Account</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         <input
-          className="border rounded px-3 py-2 w-full"
+          type="email"
           placeholder="Email"
-          value={email}
+          required
+          className="border w-full p-2 rounded"
           onChange={(e) => setEmail(e.target.value)}
         />
+
         <input
-          className="border rounded px-3 py-2 w-full"
-          placeholder="Invite token"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
+          type="password"
+          placeholder="Password"
+          required
+          className="border w-full p-2 rounded"
+          onChange={(e) => setPassword(e.target.value)}
         />
-        <button onClick={submit} className="bg-slate-900 text-white px-4 py-2 rounded w-full">
-          Continue
+
+        <button className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+          Register
         </button>
-        {status === "ok" && <p className="text-green-600 text-sm">Registered (stub).</p>}
-        {status === "error" && <p className="text-red-600 text-sm">Failed.</p>}
-      </div>
-    </main>
+      </form>
+    </div>
   );
 }

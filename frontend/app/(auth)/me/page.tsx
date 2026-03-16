@@ -1,26 +1,21 @@
-"use client";
+import { cookies } from "next/headers";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+export default async function MePage() {
+  const token = (await cookies()).get("cdss_access")?.value;
 
-export default function MePage() {
-  const [data, setData] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const res = await fetch("http://localhost:8000/auth/me", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
 
-  useEffect(() => {
-    api
-      .get("/auth/me")
-      .then((res) => setData(res.data))
-      .catch((err) => setError(err?.response?.data?.detail || "Not authenticated"));
-  }, []);
+  const user = await res.json();
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="bg-white rounded-xl shadow p-6 w-full max-w-md space-y-2">
-        <h1 className="text-xl font-semibold">Me</h1>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        {data && <pre className="text-xs bg-slate-100 p-3 rounded">{JSON.stringify(data, null, 2)}</pre>}
-      </div>
-    </main>
+    <div className="p-6">
+      <h1>Current User</h1>
+      <pre>{JSON.stringify(user, null, 2)}</pre>
+    </div>
   );
 }

@@ -1,16 +1,19 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:15-alpine
     container_name: cdss-db
+    restart: always  # Auto-starts when laptop turns on
     environment:
-      POSTGRES_USER: cdss
-      POSTGRES_PASSWORD: cdss
-      POSTGRES_DB: cdss
-    # No host port published to avoid clashes with local Postgres; connect via service name `db` from other containers.
+      POSTGRES_USER: cdss_user
+      POSTGRES_PASSWORD: cdss2026
+      POSTGRES_DB: cdss_db
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Performance optimization for a laptop environment
+    deploy:
+      resources:
+        limits:
+          memory: 1536M # Cap RAM so your laptop stays fast
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cdss -d cdss"]
       interval: 10s
@@ -20,20 +23,25 @@ services:
   redis:
     image: redis:7-alpine
     container_name: cdss-redis
+    restart: always
     command: ["redis-server", "--appendonly", "yes"]
-    # No host port published; reachable as `redis` inside the compose network.
     volumes:
       - redisdata:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: cdss-backend
+    restart: always
     environment:
       DATABASE_URL: postgresql+psycopg2://cdss:cdss@db:5432/cdss
       CDSS_APP_NAME: CDSS Backend
-      CDSS_DEBUG: "True"
+      CDSS_DEBUG: "False" # Set to False for "Always On" stability
       PYTHONPATH: /app
     depends_on:
       db:
@@ -42,8 +50,9 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    # Ensure database is migrated before starting
     command: >
-      bash -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      bash -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
   pgdata:

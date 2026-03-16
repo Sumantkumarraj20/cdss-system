@@ -1,59 +1,52 @@
 "use client";
 
-import { useState, Suspense } from "react"; 
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, setAuthToken } from "@/lib/api";
 
-// 2. Move your logic into a sub-component
-function LoginForm() {
-  const [token, setToken] = useState("");
-  const [status, setStatus] = useState<"idle" | "ok" | "error">("idle");
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/admin";
-
-  const submit = async () => {
-    try {
-      const res = await api.post("/auth/login", { token });
-      setAuthToken(res.data.access_token || token);
-      setStatus("ok");
-      router.push(redirect);
-    } catch {
-      setStatus("error");
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-xl shadow p-6 w-full max-w-md space-y-4">
-      <h1 className="text-xl font-semibold">Admin Login</h1>
-      <p className="text-sm text-slate-600">
-        Enter your admin token. Cookies will be set for cross-site requests.
-      </p>
-      <input
-        className="border rounded px-3 py-2 w-full"
-        placeholder="CDSS_API_TOKEN"
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
-      />
-      <button
-        onClick={submit}
-        className="bg-slate-900 text-white px-4 py-2 rounded w-full"
-      >
-        Continue
-      </button>
-      {status === "ok" && <p className="text-green-600 text-sm">Logged in.</p>}
-      {status === "error" && <p className="text-red-600 text-sm">Invalid token.</p>}
-    </div>
-  );
-}
-
-// 3. Export a default function that wraps the form in Suspense
 export default function LoginPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+
+  const redirect = params.get("redirect") || "/admin";
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+
+    const res = await fetch("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (res.ok) {
+      router.push(redirect);
+    } else {
+      alert("Login failed");
+    }
+  }
+
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <Suspense fallback={<div>Loading...</div>}>
-        <LoginForm />
-      </Suspense>
-    </main>
+    <div className="max-w-md mx-auto mt-20 space-y-4">
+      <h1 className="text-2xl font-semibold">Admin Login</h1>
+
+      <form onSubmit={handleLogin} className="space-y-4">
+        <input
+          className="border w-full p-2"
+          placeholder="Email"
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          className="border w-full p-2"
+          placeholder="Password"
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <button className="bg-black text-white px-4 py-2">Login</button>
+      </form>
+    </div>
   );
 }

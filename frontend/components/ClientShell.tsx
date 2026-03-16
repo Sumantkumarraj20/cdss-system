@@ -1,19 +1,18 @@
 "use client";
 
-import React from "react";
-import Header from "@/components/Header";
-import ReactQueryProvider from "@/lib/react-query-provider";
-import SyncBootstrap from "@/components/SyncBootstrap";
+import Header from "./Header";
 
-export default function ClientShell({ children }: { children: React.ReactNode }) {
+export default function ClientShell({
+  children,
+  authenticated,
+}: {
+  children: React.ReactNode;
+  authenticated: boolean;
+}) {
   return (
-    <ReactQueryProvider>
-      <SyncBootstrap>
-        <div className="min-h-screen flex flex-col">
-          <Header />
-          <main className="flex-1">{children}</main>
-        </div>
-      </SyncBootstrap>
-    </ReactQueryProvider>
+    <>
+      <Header authenticated={authenticated} />
+      <main>{children}</main>
+    </>
   );
 }

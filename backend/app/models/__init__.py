@@ -31,3 +31,4 @@ from .diagnosis_intervention import *
 from .guideline import *
 from .diagnosis_guideline import *
 from .decision_rule import *
+from .user import *

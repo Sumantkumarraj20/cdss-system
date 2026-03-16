@@ -1,59 +1,56 @@
-from fastapi import APIRouter, Body, HTTPException, status, Depends
-import os
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-from app.core.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-)
-from app.core.auth import require_token
-
-
-def cookie_params():
-    # For cross-site (Vercel) we need SameSite=None and Secure
-    frontend_origin = os.getenv("CDSS_FRONTEND_ORIGIN", "http://localhost:3000")
-    cross_site = frontend_origin.startswith("https://")
-    same_site = "none" if cross_site else "lax"
-    secure = cross_site
-    return {"httponly": True, "secure": secure, "samesite": same_site}
+from app.db.database import get_db
+from app.models.user import User
+from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
+from app.core.security import hash_password, verify_password, create_access_token
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login")
-def login(payload: dict = Body(...)):
-    expected = os.getenv("CDSS_API_TOKEN")
-    if not expected:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="API token not configured",
-        )
-    if payload.get("token") != expected:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
-    access = create_access_token("admin")
-    refresh = create_refresh_token("admin")
-    response = JSONResponse({"access_token": access, "refresh_token": refresh})
-    params = cookie_params()
-    response.set_cookie("cdss_access", access, **params)
-    response.set_cookie("cdss_refresh", refresh, **params)
-    return response
+@router.post("/register", response_model=TokenResponse)
+def register(data: RegisterRequest, db: Session = Depends(get_db)):
+
+    existing = db.query(User).filter(User.email == data.email).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = User(
+        email=data.email,
+        password_hash=hash_password(data.password),
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token({"sub": user.id})
+
+    return {"access_token": token}
 
 
-@router.post("/refresh")
-def refresh(token: dict = Body(...)):
-    sub = decode_token(token.get("refresh_token") or token.get("token") or "")
-    if not sub:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    access = create_access_token(sub)
-    response = JSONResponse({"access_token": access})
-    params = cookie_params()
-    response.set_cookie("cdss_access", access, **params)
-    return response
+@router.post("/login", response_model=TokenResponse)
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.email == data.email).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_access_token({"sub": user.id})
+
+    return {"access_token": token}
 
 
 @router.get("/me")
-def me(_: str = Depends(require_token)):
-    return {"role": "admin"}
+def me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email
+    }

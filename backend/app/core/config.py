@@ -12,12 +12,13 @@ class Settings(BaseSettings):
     app_name: str = "CDSS Backend"
     debug: bool = False
     database_url: str = Field(
-        "postgresql+psycopg2://cdss_user:strongpassword@localhost/cdss_db",
+        "postgresql+psycopg2://cdss_user:cdss2026@localhost/cdss_db",
         env="DATABASE_URL",
     )
 
     model_config = SettingsConfigDict(
         env_file=".env",
+        extra="ignore",
         case_sensitive=False,
         env_prefix="CDSS_",
     )

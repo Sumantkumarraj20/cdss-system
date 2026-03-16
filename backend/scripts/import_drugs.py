@@ -1,15 +1,16 @@
-import sys
 import os
-import uuid
-
-# Ensure package imports work when executed inside Docker or locally
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import sys
 import pandas as pd
-from sqlalchemy import select, create_engine
-from sqlalchemy.orm import Session, sessionmaker
+import uuid
+import logging
+from tqdm import tqdm
+from sqlalchemy import create_engine, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import sessionmaker
 
-from app.core.config import settings
+# Ensure package imports work
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from app.models.drug import Drug
 from app.models.drug_substitute import DrugSubstitute
 from app.models.side_effect import SideEffect
@@ -19,212 +20,155 @@ from app.models.drug_disease import DrugDisease
 from app.models.therapeutic_class import TherapeuticClass
 from app.models.mechanism import Mechanism
 
+# --- CONFIGURATION ---
+CSV_FILE = "all_medicine_databased.csv" 
+BATCH_SIZE = 2000  # Smaller batches are safer for Neon connection stability
 
-CSV_FILE = "all_medicine databased.csv"
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+def get_engines():
+    """Force ONLY Neon for this run."""
+    neon_url = os.getenv("DATABASE_URL")
+    if not neon_url:
+        print("ERROR: DATABASE_URL not found!")
+        return []
+    return [create_engine(neon_url, pool_pre_ping=True)]
 
-def main():
-    print("Loading CSV...")
-    df = pd.read_csv(CSV_FILE, low_memory=False, dtype=str)
+def clean(val):
+    v = str(val).strip()
+    return None if v.lower() in ['nan', 'na', 'none', '', 'nan'] else v
 
-    db_url = os.getenv(
-        "DATABASE_URL",
-        # Fallback to docker-compose service name to avoid localhost failures in containers.
-        "postgresql+psycopg2://cdss:cdss@db:5432/cdss",
-    )
-    print(f"Connecting to DB: {db_url}")
-    engine = create_engine(db_url, future=True)
-    SessionLocal = sessionmaker(
-        bind=engine, autoflush=False, autocommit=False, future=True
-    )
-    db: Session = SessionLocal()
+def fetch_existing_mappings(engine):
+    """Fetches existing name->id mappings to prevent ForeignKey/Constraint errors."""
+    mappings = {
+        'drug': {}, 'side_effect': {}, 'disease': {}, 
+        'tc': {}, 'mech': {}
+    }
+    Session = sessionmaker(bind=engine)
+    with Session() as session:
+        logger.info(f"Loading existing cache from {engine.url.host}...")
+        mappings['drug'] = {n: i for n, i in session.execute(select(Drug.name, Drug.id)).all()}
+        mappings['side_effect'] = {n: i for n, i in session.execute(select(SideEffect.name, SideEffect.id)).all()}
+        mappings['disease'] = {n: i for n, i in session.execute(select(Disease.name, Disease.id)).all()}
+        mappings['tc'] = {n: i for n, i in session.execute(select(TherapeuticClass.name, TherapeuticClass.id)).all()}
+        mappings['mech'] = {n: i for n, i in session.execute(select(Mechanism.name, Mechanism.id)).all()}
+    return mappings
 
-    # caches to avoid duplicate nodes and to reuse existing DB rows
-    side_effect_cache: dict[str, uuid.UUID] = {
-        name: id_
-        for name, id_ in db.execute(select(SideEffect.name, SideEffect.id)).all()
-    }
-    disease_cache: dict[str, uuid.UUID] = {
-        name: id_
-        for name, id_ in db.execute(select(Disease.name, Disease.id)).all()
-    }
-    therapeutic_cache: dict[str, uuid.UUID] = {
-        name: id_
-        for name, id_ in db.execute(
-            select(TherapeuticClass.name, TherapeuticClass.id)
-        ).all()
-    }
-    mechanism_cache: dict[str, uuid.UUID] = {
-        name: id_
-        for name, id_ in db.execute(select(Mechanism.name, Mechanism.id)).all()
-    }
-    drug_cache: dict[str, uuid.UUID] = {
-        name: id_
-        for name, id_ in db.execute(select(Drug.name, Drug.id)).all()
-    }
-    existing_substitutes = {
-        (drug_id, name)
-        for drug_id, name in db.execute(
-            select(DrugSubstitute.drug_id, DrugSubstitute.substitute_name)
-        ).all()
-    }
-    substitutes_seen = {}
-    existing_drug_diseases = {
-        (drug_id, disease_id)
-        for drug_id, disease_id in db.execute(
-            select(DrugDisease.drug_id, DrugDisease.disease_id)
-        ).all()
-    }
-    existing_drug_side_effects = {
-        (drug_id, se_id)
-        for drug_id, se_id in db.execute(
-            select(DrugSideEffect.drug_id, DrugSideEffect.side_effect_id)
-        ).all()
+def run_sync():
+    engines = get_engines()
+    if not engines:
+        logger.error("No database engines found. Check your environment variables.")
+        return
+
+    # Pass 0: Initial Cache from the primary engine (Local)
+    # This ensures consistency: once an ID is assigned, it stays that way.
+    master_cache = fetch_existing_mappings(engines[0])
+
+    logger.info("Reading CSV...")
+    df = pd.read_csv(CSV_FILE, low_memory=False)
+    
+    sub_cols = [c for c in df.columns if c.startswith("substitute")]
+    se_cols = [c for c in df.columns if c.startswith("sideEffect")]
+    use_cols = [c for c in df.columns if c.startswith("use")]
+
+    # --- PHASE 1: PRE-CALCULATE NEW ENTITIES ---
+    to_insert = {
+        TherapeuticClass: [], Mechanism: [], SideEffect: [], Disease: [],
+        Drug: [], DrugSubstitute: [], DrugSideEffect: [], DrugDisease: []
     }
 
-    # detect columns dynamically
-    side_effect_cols = [c for c in df.columns if c.lower().startswith("sideeffect")]
-    use_cols = [c for c in df.columns if c.lower().startswith("use")]
-    substitute_cols = [c for c in df.columns if c.lower().startswith("substitute")]
+    logger.info("Building Knowledge Graph structure in memory...")
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing Rows"):
+        d_name = clean(row.get('name'))
+        if not d_name: continue
 
-    print(f"Side effect columns: {len(side_effect_cols)}")
-    print(f"Use columns: {len(use_cols)}")
-    print(f"Substitute columns: {len(substitute_cols)}")
+        # Resolve TC and Mechanism
+        tc_name = clean(row.get('Therapeutic Class'))
+        if tc_name and tc_name not in master_cache['tc']:
+            new_id = uuid.uuid4()
+            master_cache['tc'][tc_name] = new_id
+            to_insert[TherapeuticClass].append({"id": new_id, "name": tc_name})
 
-    for idx, row in df.iterrows():
-        if idx % 1000 == 0:
-            print(f"Processing {idx}/{len(df)}")
+        mech_name = clean(row.get('Action Class'))
+        if mech_name and mech_name not in master_cache['mech']:
+            new_id = uuid.uuid4()
+            master_cache['mech'][mech_name] = new_id
+            to_insert[Mechanism].append({"id": new_id, "name": mech_name})
 
-        name = str(row.get("name")).strip()
-        if not name:
-            continue
+        # Resolve Drug
+        if d_name not in master_cache['drug']:
+            d_id = uuid.uuid4()
+            master_cache['drug'][d_name] = d_id
+            to_insert[Drug].append({
+                "id": d_id,
+                "name": d_name,
+                "generic_name": clean(row.get("generic_name")),
+                "therapeutic_class_id": master_cache['tc'].get(tc_name),
+                "mechanism_id": master_cache['mech'].get(mech_name),
+                "habit_forming": str(row.get("Habit Forming")).lower() == "yes"
+            })
+        
+        d_id = master_cache['drug'][d_name]
 
-        # Therapeutic class & mechanism resolution (optional columns)
-        therapeutic_name = str(row.get("Therapeutic Class") or "").strip()
-        mechanism_name = str(row.get("Action Class") or "").strip()
+        # Resolve Side Effects
+        for col in se_cols:
+            val = clean(row.get(col))
+            if val:
+                if val not in master_cache['side_effect']:
+                    se_id = uuid.uuid4()
+                    master_cache['side_effect'][val] = se_id
+                    to_insert[SideEffect].append({"id": se_id, "name": val})
+                
+                to_insert[DrugSideEffect].append({
+                    "id": uuid.uuid4(), "drug_id": d_id, "side_effect_id": master_cache['side_effect'][val]
+                })
 
-        therapeutic_id = None
-        if therapeutic_name:
-            therapeutic_id = therapeutic_cache.get(therapeutic_name)
-            if therapeutic_id is None:
-                tc = TherapeuticClass(name=therapeutic_name)
-                db.add(tc)
-                db.flush()
-                therapeutic_id = tc.id
-                therapeutic_cache[therapeutic_name] = therapeutic_id
-
-        mechanism_id = None
-        if mechanism_name:
-            mechanism_id = mechanism_cache.get(mechanism_name)
-            if mechanism_id is None:
-                mech = Mechanism(name=mechanism_name)
-                db.add(mech)
-                db.flush()
-                mechanism_id = mech.id
-                mechanism_cache[mechanism_name] = mechanism_id
-
-        if name in drug_cache:
-            drug_id = drug_cache[name]
-        else:
-            drug = Drug(
-                name=name,
-                generic_name=row.get("generic_name"),
-                chemical_class=row.get("Chemical Class"),
-                therapeutic_class_id=therapeutic_id,
-                mechanism_id=mechanism_id,
-                habit_forming=str(row.get("Habit Forming")).lower() == "yes",
-                pregnancy_category=row.get("pregnancy_category"),
-                lactation_safety=row.get("lactation_safety"),
-            )
-            db.add(drug)
-            db.flush()
-            drug_id = drug.id
-            drug_cache[name] = drug_id
-
-        # Drug Substitutes
-        # Track seen substitutes per drug to avoid unique constraint violations
-        per_drug_seen = substitutes_seen.setdefault(drug_id, set())
-        for col in substitute_cols:
-            val = row.get(col)
-            if pd.notna(val) and str(val).strip():
-                sub_name = str(val).strip()
-                key = (drug_id, sub_name)
-                if key in existing_substitutes or sub_name in per_drug_seen:
-                    continue
-                per_drug_seen.add(sub_name)
-                existing_substitutes.add(key)
-                db.add(
-                    DrugSubstitute(
-                        drug_id=drug_id,
-                        substitute_name=sub_name,
-                    )
-                )
-
-        # Side Effect Nodes + Edges
-        # Side Effect Nodes + Edges (deduped)
-        per_drug_side_seen = set()
-        for col in side_effect_cols:
-            val = row.get(col)
-            if pd.isna(val):
-                continue
-            val = str(val).strip()
-            if not val:
-                continue
-
-            if val not in side_effect_cache:
-                se = SideEffect(name=val)
-                db.add(se)
-                db.flush()
-                side_effect_cache[val] = se.id
-
-            se_id = side_effect_cache[val]
-            edge_key = (drug_id, se_id)
-            if edge_key in existing_drug_side_effects or se_id in per_drug_side_seen:
-                continue
-            per_drug_side_seen.add(se_id)
-            existing_drug_side_effects.add(edge_key)
-            db.add(
-                DrugSideEffect(
-                    drug_id=drug_id,
-                    side_effect_id=se_id,
-                )
-            )
-
-        # Disease Nodes + Edges
+        # Resolve Diseases
         for col in use_cols:
-            val = row.get(col)
-            if pd.isna(val):
-                continue
-            val = str(val).strip()
-            if not val:
-                continue
+            val = clean(row.get(col))
+            if val:
+                if val not in master_cache['disease']:
+                    dis_id = uuid.uuid4()
+                    master_cache['disease'][val] = dis_id
+                    to_insert[Disease].append({"id": dis_id, "name": val})
+                
+                to_insert[DrugDisease].append({
+                    "id": uuid.uuid4(), "drug_id": d_id, "disease_id": master_cache['disease'][val]
+                })
 
-            if val not in disease_cache:
-                disease = Disease(name=val)
-                db.add(disease)
-                db.flush()
-                disease_cache[val] = disease.id
+        # Substitutes
+        for col in sub_cols:
+            val = clean(row.get(col))
+            if val:
+                to_insert[DrugSubstitute].append({
+                    "id": uuid.uuid4(), "drug_id": d_id, "substitute_name": val
+                })
 
-            disease_id = disease_cache[val]
-            edge_key = (drug_id, disease_id)
-            if edge_key in existing_drug_diseases:
-                continue
-            existing_drug_diseases.add(edge_key)
-            db.add(
-                DrugDisease(
-                    drug_id=drug_id,
-                    disease_id=disease_id,
-                )
-            )
+    # --- PHASE 2: SEQUENTIAL BULK INSERT ---
+    # Order matters: Entities -> Parents -> Children
+    insertion_order = [
+        TherapeuticClass, Mechanism, SideEffect, Disease, 
+        Drug, 
+        DrugSubstitute, DrugSideEffect, DrugDisease
+    ]
 
-        if idx % 1000 == 0:
-            db.commit()
-
-    db.commit()
-    db.close()
-
-    print("Import completed successfully.")
-
+    for engine in engines:
+        logger.info(f"Connecting to: {engine.url.host}")
+        with engine.begin() as conn:
+            for model in insertion_order:
+                data = to_insert[model]
+                if not data: continue
+                
+                logger.info(f"  Inserting {len(data)} rows into {model.__tablename__}...")
+                for i in range(0, len(data), BATCH_SIZE):
+                    chunk = data[i:i + BATCH_SIZE]
+                    stmt = insert(model).values(chunk).on_conflict_do_nothing()
+                    conn.execute(stmt)
 
 if __name__ == "__main__":
-    main()
+    try:
+        run_sync()
+        logger.info("Knowledge Graph synchronization successful.")
+    except Exception as e:
+        logger.error(f"Sync failed: {e}")
