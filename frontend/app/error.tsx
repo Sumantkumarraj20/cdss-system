@@ -8,8 +8,8 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
   }, [error]);
 
   return (
-    <html>
-      <body className="min-h-screen bg-slate-50 text-slate-900">
+    <>
+      <div className="min-h-screen bg-slate-50 text-slate-900">
         <div className="max-w-2xl mx-auto py-16 px-6 space-y-4">
           <h1 className="text-2xl font-bold text-red-700">Something went wrong</h1>
           <p className="text-sm text-slate-700 whitespace-pre-wrap bg-red-50 border border-red-200 rounded p-3">
@@ -23,7 +23,7 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
           </button>
           <p className="text-xs text-slate-500">See console for full stack trace.</p>
         </div>
-      </body>
-    </html>
+      </div>
+    </>
   );
 }

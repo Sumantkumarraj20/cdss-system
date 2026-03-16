@@ -11,9 +11,9 @@ from app.models.presentation import Presentation
 from app.schemas.drug import DrugCreate, DrugDetail
 from app.schemas.clinical import DiagnosisCreate, PresentationCreate
 from app.services import drug_service
-from app.core.auth import require_token
+from app.core.auth import get_current_user
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_token)])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/drugs", response_model=DrugDetail, status_code=201)

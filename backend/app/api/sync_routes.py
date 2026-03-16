@@ -13,7 +13,7 @@ from app.models.drug import Drug
 from app.models.diagnosis import Diagnosis
 from app.models.presentation import Presentation
 from app.schemas.sync import SyncPullRequest, SyncPullResponse, SyncPushRequest
-from app.core.auth import require_token
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -85,7 +85,7 @@ def sync_drugs(req: SyncPullRequest, db: Session = Depends(get_db)):
 def sync_drugs_push(
     req: SyncPushRequest,
     db: Session = Depends(get_db),
-    _: str = Depends(require_token),
+    _: str = Depends(get_current_user),
 ):
     _push(Drug, req.documents, db)
     return {"status": "ok"}
@@ -100,7 +100,7 @@ def sync_diagnoses(req: SyncPullRequest, db: Session = Depends(get_db)):
 def sync_diagnoses_push(
     req: SyncPushRequest,
     db: Session = Depends(get_db),
-    _: str = Depends(require_token),
+    _: str = Depends(get_current_user),
 ):
     _push(Diagnosis, req.documents, db)
     return {"status": "ok"}
@@ -115,7 +115,7 @@ def sync_presentations(req: SyncPullRequest, db: Session = Depends(get_db)):
 def sync_presentations_push(
     req: SyncPushRequest,
     db: Session = Depends(get_db),
-    _: str = Depends(require_token),
+    _: str = Depends(get_current_user),
 ):
     _push(Presentation, req.documents, db)
     return {"status": "ok"}

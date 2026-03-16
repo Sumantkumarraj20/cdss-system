@@ -1,6 +1,8 @@
 "use client";
 
 import Header from "./Header";
+import ReactQueryProvider from "@/lib/react-query-provider";
+
 
 export default function ClientShell({
   children,
@@ -10,9 +12,9 @@ export default function ClientShell({
   authenticated: boolean;
 }) {
   return (
-    <>
+    <ReactQueryProvider>
       <Header authenticated={authenticated} />
       <main>{children}</main>
-    </>
+    </ReactQueryProvider>
   );
 }

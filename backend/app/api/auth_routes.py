@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -13,13 +13,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=TokenResponse)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
-    existing = db.query(User).filter(User.email == data.email).first()
+    email = data.email.lower().strip()
+
+    existing = db.query(User).filter(User.email == email).first()
 
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered",
+        )
 
     user = User(
-        email=data.email,
+        email=email,
         password_hash=hash_password(data.password),
     )
 
@@ -27,30 +32,45 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    token = create_access_token({"sub": user.id})
+    token = create_access_token({"sub": str(user.id)})
 
-    return {"access_token": token}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
 
-    user = db.query(User).filter(User.email == data.email).first()
+    email = data.email.lower().strip()
+
+    user = db.query(User).filter(User.email == email).first()
 
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
 
     if not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
 
-    token = create_access_token({"sub": user.id})
+    token = create_access_token({"sub": str(user.id)})
 
-    return {"access_token": token}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+    }
 
 
 @router.get("/me")
 def me(current_user: User = Depends(get_current_user)):
+
     return {
         "id": current_user.id,
-        "email": current_user.email
+        "email": current_user.email,
     }

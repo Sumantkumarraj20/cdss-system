@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
@@ -17,6 +18,9 @@ export default function LoginPage() {
 
     const res = await fetch("/api/login", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ email, password }),
     });
 
@@ -28,25 +32,48 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-20 space-y-4">
-      <h1 className="text-2xl font-semibold">Admin Login</h1>
+    <div className="max-w-md mx-auto mt-20 space-y-6">
+      {/* Title */}
+      <div>
+        <h1 className="text-2xl font-semibold">Admin Login</h1>
+        <p className="text-sm text-slate-500">
+          Sign in to manage CDSS clinical knowledge modules.
+        </p>
+      </div>
 
+      {/* Form */}
       <form onSubmit={handleLogin} className="space-y-4">
         <input
-          className="border w-full p-2"
+          type="email"
+          required
+          className="border w-full p-2 rounded"
           placeholder="Email"
           onChange={(e) => setEmail(e.target.value)}
         />
 
         <input
           type="password"
-          className="border w-full p-2"
+          required
+          className="border w-full p-2 rounded"
           placeholder="Password"
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        <button className="bg-black text-white px-4 py-2">Login</button>
+        <button className="w-full bg-black text-white px-4 py-2 rounded hover:bg-slate-800">
+          Login
+        </button>
       </form>
+
+      {/* Registration Navigation */}
+      <div className="text-sm text-slate-600 text-center">
+        No admin account?{" "}
+        <Link
+          href="/register"
+          className="text-blue-600 hover:underline font-medium"
+        >
+          Create one
+        </Link>
+      </div>
     </div>
   );
 }
